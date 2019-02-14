@@ -26,9 +26,10 @@ class FILE:
 		self.group=pwd.getpwuid(os.stat(filepath).st_uid).pw_name
 		self.email=self.user+'@brandeis.edu'
 
+# This function will notify users of their files
 def send_email(user,time_thresh,file,sample_access):
 	sender = 'hayati@hpcc.brandeis.edu'
-	receivers = ['hayati@brandeis.edu']
+	receivers = user+'@brandeis.edu'
 	sender_name='HPCC Brandeis' 
 	sender_email='<no-reply@hpcc.brandeis.edu>'
 	receiver_name=user
