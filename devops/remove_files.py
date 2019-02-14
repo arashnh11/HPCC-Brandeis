@@ -24,21 +24,16 @@ def send_email(admin,user,address,textfile):
 	s.quit()
 def create_report(database, time_thresh, time_now):
 	date=str(time_now.year)+"-"+str(time_now.month)+"-"+str(time_now.day)
-	file = open("work_summary-"+date,"w") 
+	file = open("work_file_removal-"+date,"w") 
 	file.write("#This file reports user/group owners of all files on /work that have not been accessed in the last "+str(time_thresh)+" days.\n")
 	file.write("#Report Date: "+date+"\n")
-	file.write("#Format: user_owner group_owner number_of_files\n\n")
+	file.write("#Format: user_owner total#_removed_files\n\n")
 	for key in database:
-		file.write("%s %s %d\n" %(key, database[key][1], database[key][0]))
-	file.close() 
+		file.write("%s %d\n" %(key, database[key][0]))
+	file.close()
+
 # This function will walk through all files in a given path recursively
 def file_search(filepath, time_thresh,time_now):
-	date=str(time_now.year)+"-"+str(time_now.month)+"-"+str(time_now.day)
-	list_files = open("work_files-"+date,"w") 
-	list_files.write("#This file reports all files on /work that have not been accessed in the last "+str(time_thresh)+" days.\n")
-	list_files.write("#Report Date: "+date+"\n")
-	list_files.write("#Format: file elapsed_time_from_last_access(in days) last_access user_owner group_owner\n\n")
-	
 	database={}
 	for (dirpath, dirnames, filenames) in os.walk(filepath):
 		if dirpath.find('.') == -1:
@@ -68,25 +63,26 @@ def file_search(filepath, time_thresh,time_now):
 					# Get the file ownership information
 					F = FILE(file)		
 					# Count the number of files that each user/group has that has exceeded the criteria
+					print(diff_min)
+					print(time_thresh)
 					if (diff_min > time_thresh):
 						if F.user in database:
-							database[F.user][0] += 1
+							database[F.user] += 1
 						else:
-							database[F.user] = [1, F.group]
-						list_files.write("%s %2.1f %s %s %s\n" % (F.path, diff_min, time_max, F.user, F.group))
-	list_files.close()
+							database[F.user] = 1
+						print(file)
+						os.remove(file)
 	return database
 def main():
 	# current time
 	time_now=datetime.datetime.now()
 	# time period criteria to check whether the last time the file was changed is beyond the time threshold
-	time_thresh=30 # in days
+	time_thresh=0 # in days
 	# filepath
-	filepath=os.getcwd()
-	filepath='/work/dayakaran/'
+	filepath='/home/hayati/HPCC-Brandeis/devops/test'
 	# Run the file search function and create the database
 	database=file_search(filepath, time_thresh,time_now)
-	report=create_report(database,time_thresh,time_now)
+	create_report(database,time_thresh,time_now)
 	# Send Email to users
 if __name__ == '__main__':
 	main()
