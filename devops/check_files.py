@@ -1,7 +1,20 @@
+# Author: Arash Nemati Hayati
+# 14 Feb 2019
+# HPCC Brandeis
+
+#This code will 
+	#1) check for files and folders inside a given path and will generate a report
+    	#listing those users that have files that have not been accessed/modified/group_changed
+		# within the given time threshold
+	#2) notify users about the files and ask them to transfer/remove them within 7 days of receiving the notice
+
 import os, time, datetime
 import pwd, smtplib
 import email.message
 import random
+import smtplib
+import sys
+
 clear = lambda: os.system('clear')
 clear()
 
@@ -13,24 +26,32 @@ class FILE:
 		self.group=pwd.getpwuid(os.stat(filepath).st_uid).pw_name
 		self.email=self.user+'@brandeis.edu'
 
-def send_email(admin,user,address,textfile):
-	with open(textfile) as fp:
-		msg=email.message.EmailMessage()
-		msg.set_content(fp.read())
-	msg['Subject']='The contents of %s' % textfile
-	msg['From']=admin
-	msg['To']=user	
-	s=smtplib.SMTP(host='localhost', port=1025)
-	s.send_message(msg)
-	s.quit()
-def create_report(database, time_thresh, time_now):
+def send_email(user,time_thresh,file,sample_access):
+	sender = 'hayati@hpcc.brandeis.edu'
+	receivers = ['hayati@brandeis.edu']
+	sender_name='HPCC Brandeis' 
+	sender_email='<no-reply@hpcc.brandeis.edu>'
+	receiver_name=user
+	receiver_email='<'+user+'@brandeis.edu>'
+	subject='Important Notice: Your Data on $WORK'
+	body='Dear HPCC user: '+user+'\n\n'+'Our records show that you have files on $WORK that have not been accessed/changed/modified in the last '+str(time_thresh)+' days.'+' Below is a sample of such files:\n'+file+' '+sample_access+'\n\n'+'We kindly ask you to review those files and either delete them or transfer them to long-term storage spaces at your research lab or personal space in the next 7 days from receiving this notice. Otherwise, they will be deleted without any further notice.'+' For more details regarding HPCC user policies please visit https://kb.brandeis.edu/display/SCI/HPCC+User+Policies.\n\nThank you for your cooperation\nHigh-Performance-Computing Center Administration\nDivision of Science, Brandeis University'
+	message = """From: %s %s
+To: %s %s
+Subject: %s
+%s
+""" % (sender_name, sender_email, receiver_name, receiver_email, subject, body)
+	smtpObj = smtplib.SMTP('hpcphi.sci.brandeis.edu')
+	smtpObj.sendmail(sender, receivers, message)      
+
+# This function will create a report of the files summary at a given path	
+def create_report(database, time_thresh, time_now, filepath):
 	date=str(time_now.year)+"-"+str(time_now.month)+"-"+str(time_now.day)
 	file = open("work_summary-"+date,"w") 
-	file.write("#This file reports user/group owners of all files on /work that have not been accessed in the last "+str(time_thresh)+" days.\n")
+	file.write("#This file reports user/group owners of all files on "+str(filepath)+" that have not been accessed in the last "+str(time_thresh)+" days.\n")
 	file.write("#Report Date: "+date+"\n")
-	file.write("#Format: user_owner group_owner number_of_files\n\n")
+	file.write("#Format: user_owner group_owner sample_file last_access elapsed_time_since_last_access\n\n")
 	for key in database:
-		file.write("%s %s %s %s %d\n" %(key, database[key][0], database[key][1], database[key][2], database[key][3]))
+		file.write("%s %s %s %s %2.0f\n" %(key, database[key][0], database[key][1], database[key][2], database[key][3]))
 	file.close()
 
 # This function will walk through all files in a given path recursively
@@ -38,8 +59,9 @@ def file_search(filepath, time_thresh,time_now):
 	database={}
 	for (dirpath, dirnames, filenames) in os.walk(filepath):
 		dir = FILE(dirpath)
-		if dir.user in database or dirpath.find('.') != -1 or len(filenames) == 0:
+		if dir.user in database or dirpath.find('.snapshot') != -1 or len(filenames) == 0:
 			continue
+		# select a random file inside each folder
 		f = random.sample(filenames,1)
 		if f[0][0] == '.':
 			continue
@@ -72,18 +94,20 @@ def file_search(filepath, time_thresh,time_now):
 		if (diff_min > time_thresh):
 			if not F.user in database:
 				database[F.user] = [F.group, F.path, time_max, diff_min]
-				print(F.group, F.path, time_max, diff_min)
+				print("%s %s %s %2.0f" %(F.group, F.path, time_max, diff_min))
 	return database
 def main():
 	# current time
 	time_now=datetime.datetime.now()
 	# time period criteria to check whether the last time the file was changed is beyond the time threshold
-	time_thresh=30 # in days
+	time_thresh=int(sys.argv[1]) # in days
 	# filepath
-	filepath='/work/'
+	filepath=str(sys.argv[2])
 	# Run the file search function and create the database
 	database=file_search(filepath, time_thresh,time_now)
-	create_report(database,time_thresh,time_now)
-	# Send Email to users
+	create_report(database,time_thresh,time_now, filepath)
+	# Notify users by email
+	for key in database:
+		send_email(key, time_thresh, database[key][1], database[key][2])
 if __name__ == '__main__':
 	main()

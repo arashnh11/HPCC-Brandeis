@@ -1,6 +1,15 @@
+# Author: Arash Nemati Hayati
+# 14 Feb 2019
+# HPCC Brandeis
+
+#This code will 
+	#1) All files inside a given path that have not been accessed/modified/group_changed in the last threshod days
+	#2) Create a report of user owners and their deleted files
+
 import os, time, datetime
-import pwd, smtplib
-import email.message
+import pwd
+import sys
+
 clear = lambda: os.system('clear')
 clear()
 
@@ -10,33 +19,22 @@ class FILE:
 		self.path=filepath
 		self.user=pwd.getpwuid(os.stat(filepath).st_uid).pw_name
 		self.group=pwd.getpwuid(os.stat(filepath).st_uid).pw_name
-		self.email=self.user+'@brandeis.edu'
 
-def send_email(admin,user,address,textfile):
-	with open(textfile) as fp:
-		msg=email.message.EmailMessage()
-		msg.set_content(fp.read())
-	msg['Subject']='The contents of %s' % textfile
-	msg['From']=admin
-	msg['To']=user	
-	s=smtplib.SMTP(host='localhost', port=1025)
-	s.send_message(msg)
-	s.quit()
-def create_report(database, time_thresh, time_now):
+def create_report(database, time_thresh, time_now, filepath):
 	date=str(time_now.year)+"-"+str(time_now.month)+"-"+str(time_now.day)
 	file = open("work_file_removal-"+date,"w") 
-	file.write("#This file reports user/group owners of all files on /work that have not been accessed in the last "+str(time_thresh)+" days.\n")
+	file.write("#This file reports user/group owners of files on "+str(filepath)+" that have not been accessed in the last "+str(time_thresh)+" days.\n")
 	file.write("#Report Date: "+date+"\n")
 	file.write("#Format: user_owner total#_removed_files\n\n")
 	for key in database:
-		file.write("%s %d\n" %(key, database[key][0]))
+		file.write("%s %d\n" %(key, database[key]))
 	file.close()
 
 # This function will walk through all files in a given path recursively
 def file_search(filepath, time_thresh,time_now):
 	database={}
 	for (dirpath, dirnames, filenames) in os.walk(filepath):
-		if dirpath.find('.') == -1:
+		if dirpath.find('.snapshot') == -1:
 			for f in filenames:
 				if f[0] != '.':
 					# get the absolute path of the file
@@ -63,26 +61,22 @@ def file_search(filepath, time_thresh,time_now):
 					# Get the file ownership information
 					F = FILE(file)		
 					# Count the number of files that each user/group has that has exceeded the criteria
-					print(diff_min)
-					print(time_thresh)
 					if (diff_min > time_thresh):
 						if F.user in database:
 							database[F.user] += 1
 						else:
 							database[F.user] = 1
-						print(file)
 						os.remove(file)
 	return database
 def main():
 	# current time
 	time_now=datetime.datetime.now()
 	# time period criteria to check whether the last time the file was changed is beyond the time threshold
-	time_thresh=0 # in days
+	time_thresh=int(sys.argv[1]) # in days
 	# filepath
-	filepath='/home/hayati/HPCC-Brandeis/devops/test'
+	filepath=str(sys.argv[2])
 	# Run the file search function and create the database
 	database=file_search(filepath, time_thresh,time_now)
-	create_report(database,time_thresh,time_now)
-	# Send Email to users
+	create_report(database,time_thresh,time_now,filepath)
 if __name__ == '__main__':
 	main()
